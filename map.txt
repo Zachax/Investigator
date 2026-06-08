@@ -1,0 +1,7 @@
+# Default map for Investigator
+# Format: <type> <x> <y> <z>
+# Supported types: cube, pyramid
+cube 0 0 8
+pyramid 3.5 0 12
+cube -4 0 20
+cube 6 0 30
