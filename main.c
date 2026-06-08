@@ -151,12 +151,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrev, LPSTR lpCmd, int nCmdSh
         int strafeLeft  = (GetAsyncKeyState('Z') & 0x8000);
         int strafeRight = (GetAsyncKeyState('C') & 0x8000);
 
-        if (moveForward) { camX += fx * speed; camZ += fz * speed; }
-        if (moveBack)    { camX -= fx * speed; camZ -= fz * speed; }
+        // Shift increases movement speed
+        int shiftHeld = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
+        double speedCurr = speed * (shiftHeld ? 2.0 : 1.0);
+
+        if (moveForward) { camX += fx * speedCurr; camZ += fz * speedCurr; }
+        if (moveBack)    { camX -= fx * speedCurr; camZ -= fz * speedCurr; }
         if (turnLeft)    { ang -= rotSpeed; }
         if (turnRight)   { ang += rotSpeed; }
-        if (strafeLeft)  { camX -= rx * speed; camZ -= rz * speed; }
-        if (strafeRight) { camX += rx * speed; camZ += rz * speed; }
+        if (strafeLeft)  { camX -= rx * speedCurr; camZ -= rz * speedCurr; }
+        if (strafeRight) { camX += rx * speedCurr; camZ += rz * speedCurr; }
 
         // rendering
         HDC hdc = GetDC(hwnd);
@@ -188,14 +192,35 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrev, LPSTR lpCmd, int nCmdSh
         SelectObject(mem, pen);
 
         // draw a simple grid on ground to help sense movement
+        // use near-plane clipping so long lines don't vanish when part goes behind camera
         for (int i=-20;i<=20;i++){
             Vec3 g1 = { i*1.0, 0.0, 5.0 };
             Vec3 g2 = { i*1.0, 0.0, 40.0 };
-            int x1,y1,x2,y2;
-            if (project(&g1, camX,camY,camZ, ang, cx,horizon, &x1,&y1) && project(&g2, camX,camY,camZ, ang, cx,horizon, &x2,&y2)){
-                MoveToEx(mem, x1, y1, NULL);
-                LineTo(mem, x2, y2);
+
+            double atx,aty,atz, btx,bty,btz;
+            transformPoint(&g1, camX,camY,camZ, ang, &atx,&aty,&atz);
+            transformPoint(&g2, camX,camY,camZ, ang, &btx,&bty,&btz);
+            const double nearPlane = 0.05;
+            if (atz <= nearPlane && btz <= nearPlane) continue;
+            if (atz <= nearPlane || btz <= nearPlane){
+                double t = 0.0;
+                if ((btz - atz) != 0.0) t = (nearPlane - atz) / (btz - atz);
+                if (atz < btz){
+                    atx = atx + (btx - atx) * t;
+                    aty = aty + (bty - aty) * t;
+                    atz = nearPlane;
+                } else {
+                    btx = atx + (btx - atx) * t;
+                    bty = aty + (bty - aty) * t;
+                    btz = nearPlane;
+                }
             }
+            int x1 = cx + (int)((atx * FOV_SCALE) / atz);
+            int y1 = horizon - (int)((aty * FOV_SCALE) / atz);
+            int x2 = cx + (int)((btx * FOV_SCALE) / btz);
+            int y2 = horizon - (int)((bty * FOV_SCALE) / btz);
+            MoveToEx(mem, x1, y1, NULL);
+            LineTo(mem, x2, y2);
         }
 
         // draw cube and pyramid
@@ -225,11 +250,20 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrev, LPSTR lpCmd, int nCmdSh
             // draw objects relative to camera (top-down: X to right, Z to up)
             int ox = mapCx + (int)((cubeX - camX) * mapScale);
             int oy = mapCy - (int)((cubeZ - camZ) * mapScale);
-            Ellipse(mem, ox-3, oy-3, ox+3, oy+3);
+            int half = mapSize/2;
+            int dxo = ox - mapCx;
+            int dyo = oy - mapCy;
+            if (dxo >= -half && dxo <= half && dyo >= -half && dyo <= half) {
+                Ellipse(mem, ox-3, oy-3, ox+3, oy+3);
+            }
 
             int px = mapCx + (int)((pyrX - camX) * mapScale);
             int py = mapCy - (int)((pyrZ - camZ) * mapScale);
-            Ellipse(mem, px-3, py-3, px+3, py+3);
+            int dxp = px - mapCx;
+            int dyp = py - mapCy;
+            if (dxp >= -half && dxp <= half && dyp >= -half && dyp <= half) {
+                Ellipse(mem, px-3, py-3, px+3, py+3);
+            }
 
             // player indicator (center)
             Ellipse(mem, mapCx-4, mapCy-4, mapCx+4, mapCy+4);

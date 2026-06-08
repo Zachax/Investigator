@@ -1,0 +1,3 @@
+# Disable automatic end-of-line normalization for this repo.
+# This preserves files' existing CRLF/LF bytes and prevents Git from converting them.
+* -text
