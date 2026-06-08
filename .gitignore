@@ -1,0 +1,16 @@
+# Executables and build artifacts
+*.exe
+*.o
+*.obj
+*.pdb
+/build/
+
+# Visual Studio
+.vs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# temp/test outputs
+Investigator_test.exe
