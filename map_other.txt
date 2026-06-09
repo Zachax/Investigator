@@ -1,0 +1,40 @@
+# Secondary map for teleport testing
+# Multiple spawn points and a huge pyramid
+
+# default spawn
+spawn_default 2 1 2
+
+# named spawns
+spawn entryA 1 1 3
+spawn entryB 10 1 5
+spawn secret 25 1 25
+
+# custom huge pyramid (ten times height)
+shape huge_pyramid
+v 0 10.0 0
+v -10 0 20
+v 20 0 20
+v 20 0 -10
+v -10 0 -10
+# base edges
+e 1 2
+e 2 3
+e 3 4
+e 4 1
+# sides
+e 0 1
+e 0 2
+e 0 3
+e 0 4
+endshape
+
+# other objects
+cube -5 1 8 1.5
+hex_prism 6 1 12 1.2
+
+# teleporter back to main map (two-way): entryA <-> main map entrance A
+# place teleporter at entryA location
+huge_pyramid 15 1 40 0 0 0 hb=3.0
+star_extruded 1 1 3 0 0 0 0xFF00FF hb=1.0 ->map.txt:default
+# teleporter returning to main map at default spawn
+cube 8 1 10 1.0 ->map.txt:default hb=1.2

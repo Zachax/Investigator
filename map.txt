@@ -1,7 +1,164 @@
-# Default map for Investigator
-# Format: <type> <x> <y> <z>
-# Supported types: cube, pyramid
-cube 0 0 8
-pyramid 3.5 0 12
-cube -4 0 20
-cube 6 0 30
+# Investigator map file
+# Consolidated instruction block and examples
+#
+# Map file syntax (extended):
+# - Lines starting with '#' are comments.
+# - Tokens are whitespace-separated. Parsing is case-insensitive for keywords and shape names.
+#
+# Built-in placements:
+# - cube X Y Z
+# - pyramid X Y Z
+#   Places a built-in primitive at world coordinates (X,Y,Z).
+#
+# Custom shapes:
+# - shape <name>
+#     v X Y Z       # vertex (relative to shape origin)
+#     v X Y Z
+#     e A B         # edge connecting vertex indices A and B (0-based)
+#     e A B
+#   endshape
+#   Define vertices and edges for a named custom shape.
+#
+# Placements of shapes (built-in or custom):
+# - <name> X Y Z [RX RY RZ] [COLOR]
+#   Place an object named <name> at (X,Y,Z). Optional rotations RX,RY,RZ are degrees
+#   applied in X->Y->Z order. Optional COLOR can be one of:
+#     - #RRGGBB   (hex, leading '#')
+#     - R,G,B     (three integers 0-255 separated by commas)
+#     - 0xRRGGBB  (hex with 0x prefix)
+#   If COLOR is omitted, the default wireframe color is used (defined in code).
+#
+# Hot reload: press 'L' while running to reload this file.
+#
+# Hitbox (debugging) - optional
+# - You can specify an object hitbox radius to enable collision testing.
+# - Syntax examples (any of these after the placement tokens):
+#     hb=1.2         # named token with equals
+#     hb 1.2         # token followed by numeric
+#     1.2            # standalone numeric token is treated as hitbox radius
+# - Hitboxes are simple spheres centered at the object's placement position.
+#
+# --- Example custom shapes (defined once, then placed below) ---
+
+# A 5-point star extruded slightly to give a more interesting wireframe
+shape star_extruded
+v 0.0 0.2 0.0
+v 0.0 -0.2 0.0
+v 0.6 0.0 0.0
+v 0.2 0.0 0.4
+v -0.2 0.0 0.4
+v -0.6 0.0 0.0
+v -0.2 0.0 -0.4
+v 0.2 0.0 -0.4
+v 0.8 0.0 0.0
+v -0.8 0.0 0.0
+v 0.6 0.4 0.0
+v -0.6 0.4 0.0
+e 0 2
+e 2 3
+e 3 4
+e 4 5
+e 5 6
+e 6 7
+e 7 8
+e 8 9
+e 9 0
+# vertical connections to give depth
+e 0 1
+e 2 10
+e 9 11
+e 10 11
+endshape
+
+# A hexagonal prism (top and bottom hex rings plus vertical edges)
+shape hex_prism
+v 0.5 0.5 0.0
+v 0.0 0.5 0.43
+v -0.5 0.5 0.43
+v -0.8 0.5 0.0
+v -0.5 0.5 -0.43
+v 0.0 0.5 -0.43
+v 0.5 -0.5 0.0
+v 0.0 -0.5 0.43
+v -0.5 -0.5 0.43
+v -0.8 -0.5 0.0
+v -0.5 -0.5 -0.43
+v 0.0 -0.5 -0.43
+# top ring
+e 0 1
+e 1 2
+e 2 3
+e 3 4
+e 4 5
+e 5 0
+# bottom ring
+e 6 7
+e 7 8
+e 8 9
+e 9 10
+e 10 11
+e 11 6
+# vertical edges
+e 0 6
+e 1 7
+e 2 8
+e 3 9
+e 4 10
+e 5 11
+endshape
+
+# A twisted ribbon-like polygonal loop for visual complexity
+shape ribbon_twist
+v -0.6 0.0 -0.2
+v -0.3 0.1 0.0
+v 0.0 0.0 0.2
+v 0.3 -0.1 0.0
+v 0.6 0.0 -0.2
+v 0.3 0.15 -0.4
+v 0.0 0.2 -0.2
+v -0.3 0.15 -0.4
+e 0 1
+e 1 2
+e 2 3
+e 3 4
+e 4 5
+e 5 6
+e 6 7
+e 7 0
+e 0 4
+e 1 5
+e 2 6
+e 3 7
+endshape
+
+# --- Placements (your manually adjusted items are preserved) ---
+
+cube 0 1 8
+pyramid 3.5 1 12
+cube -4 1 20
+cube 6 1 30
+pyramid 50 1 10
+pyramid 13 1 20
+
+# spawn default for this map
+spawn_default 0 1 8
+
+# Placements of the example shapes (colors shown as examples)
+# color examples: #FFAA00, 128,200,50, 0x00FF88
+cube 0 1 8 1.2
+pyramid 3.5 1 12 1.0
+cube -4 1 20 1.2
+cube 6 1 30 1.2
+pyramid 50 1 10 1.5
+pyramid 13 1 20 1.0
+
+# Example placements with hitboxes and colors
+star_extruded 10 1 18 0 45 0 #FFAA00 hb=1.4
+hex_prism -8 1 25 0 0 30 128,200,50 hb=1.6
+ribbon_twist 20 1 35 15 30 45 0x00FF88 hb=1.8
+
+# teleporter pairs to map_other.txt
+# entrance A -> map_other spawn name entryA
+hex_prism -2 1 15 0 0 0 0x00FF00 hb=1.2 ->map_other.txt:spawn=entryA
+# entrance B -> map_other default spawn
+cube 4 1 28 1.0 ->map_other.txt:default hb=1.2
