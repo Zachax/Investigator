@@ -1,4 +1,6 @@
 Investigator — Wireframe FPS Demo (C, Win32)
+Sakari Eskelinen from June 2026
+(with AI support)
 
 Overview
 - Small demo game showing first-person wireframe movement similar to 1980s vector graphics.
@@ -27,14 +29,15 @@ Building
 Running
 - Run `Investigator.exe` on Windows.
 - Controls:
-  - Up Arrow: Move forward
-  - Down Arrow: Move back
-  - Left/Right Arrows: Turn
-  - A / D: Strafe left / right
+  - W & Up Arrow: Move forward
+  - S & Down Arrow: Move back
+  - A/D & Left/Right Arrows: Turn
+  - Z/C: Strafe left / right
 
 Notes
 - The project is intentionally minimal to be easy to inspect and port.
 - If you want smoother rendering or texture support, consider using SDL2 or Direct2D.
+- AI text messages seem so darn verbose sometimes, and even it doesn't always keep up with the real code status.
 
 License
-- Public domain / use as you wish.
+- Try and share if you like, but don't claim as your own
