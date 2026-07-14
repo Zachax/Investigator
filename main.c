@@ -12,6 +12,19 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     return DefWindowProc(hwnd,msg,wParam,lParam);
 }
 
+typedef struct {
+    int index;
+    double depth;
+} RenderObjectEntry;
+
+static int compareRenderObjectDepth(const void *a, const void *b) {
+    const RenderObjectEntry *ea = (const RenderObjectEntry *)a;
+    const RenderObjectEntry *eb = (const RenderObjectEntry *)b;
+    if (ea->depth < eb->depth) return 1;
+    if (ea->depth > eb->depth) return -1;
+    return 0;
+}
+
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrev, LPSTR lpCmd, int nCmdShow){
     const char *clsName = "InvestigatorClass";
     WNDCLASS wc = {0};
@@ -34,6 +47,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrev, LPSTR lpCmd, int nCmdSh
     // load map and initialize state
     loadMap(currentMapFile);
     int lastLState = 0;
+    int lastShootState = 0;
 
     // main loop
     MSG msg;
@@ -53,10 +67,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrev, LPSTR lpCmd, int nCmdSh
         }
 
         double speedCurr = 0.0;
-        int reload = handleInput(&camX, &camY, &camZ, &ang, speed, rotSpeed, &speedCurr, &lastLState);
+        int shootPressed = 0;
+        int reload = handleInput(&camX, &camY, &camZ, &ang, speed, rotSpeed, &speedCurr, &lastLState, &shootPressed, &lastShootState);
         if (reload) loadMap(currentMapFile);
+        if (shootPressed) spawnPlayerShot(camX, camY, camZ, ang);
 
         updateObjects(dt, camX, camY, camZ);
+        updateProjectiles(dt, camX, camY, camZ);
 
         // rendering
         HDC hdc = GetDC(hwnd);
@@ -114,22 +131,44 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrev, LPSTR lpCmd, int nCmdSh
             LineTo(mem, x2, y2);
         }
 
-        for (int mi=0; mi<mapObjectCount; ++mi){
-            MapObject *mo = &mapObjects[mi];
-            HPEN objPen = CreatePen(PS_SOLID, 2, mo->color);
-            HGDIOBJ prevPen = SelectObject(mem, objPen);
-            if (mo->type == OBJ_CUBE) {
-                drawWire(mem, cubeVerts, cubeVertCount, (int (*)[2])cubeEdges, cubeEdgeCount, mo->x, mo->y, mo->z, camX,camY,camZ, ang, cx, horizon, mo->rx, mo->ry, mo->rz);
-            } else if (mo->type == OBJ_PYRAMID) {
-                drawWire(mem, pyramidVerts, pyramidVertCount, (int (*)[2])pyramidEdges, pyramidEdgeCount, mo->x, mo->y, mo->z, camX,camY,camZ, ang, cx, horizon, mo->rx, mo->ry, mo->rz);
-            } else if (mo->type == OBJ_CUSTOM) {
-                if (mo->shapeIndex >=0 && mo->shapeIndex < customShapeCount){
-                    CustomShape *cs = &customShapes[mo->shapeIndex];
-                    drawWire(mem, cs->verts, cs->vertCount, cs->edges, cs->edgeCount, mo->x, mo->y, mo->z, camX,camY,camZ, ang, cx, horizon, mo->rx, mo->ry, mo->rz);
-                }
+        if (mapObjectCount > 0) {
+            RenderObjectEntry *renderOrder = malloc(sizeof(RenderObjectEntry) * mapObjectCount);
+            for (int mi=0; mi<mapObjectCount; ++mi) {
+                double dx = mapObjects[mi].x - camX;
+                double dy = mapObjects[mi].y - camY;
+                double dz = mapObjects[mi].z - camZ;
+                renderOrder[mi].index = mi;
+                renderOrder[mi].depth = dx*dx + dy*dy + dz*dz;
             }
-            SelectObject(mem, prevPen);
-            DeleteObject(objPen);
+            qsort(renderOrder, mapObjectCount, sizeof(RenderObjectEntry), compareRenderObjectDepth);
+            for (int oi=0; oi<mapObjectCount; ++oi) {
+                MapObject *mo = &mapObjects[renderOrder[oi].index];
+                HPEN objPen = CreatePen(PS_SOLID, 2, mo->color);
+                HGDIOBJ prevPen = SelectObject(mem, objPen);
+                if (mo->type == OBJ_CUBE) {
+                    drawWire(mem, cubeVerts, cubeVertCount, (int (*)[2])cubeEdges, cubeEdgeCount, mo->x, mo->y, mo->z, camX,camY,camZ, ang, cx, horizon, mo->rx, mo->ry, mo->rz, cubeFaces, cubeFaceCount, mo->color, mo->fillColor, mo->hasFillColor);
+                } else if (mo->type == OBJ_PYRAMID) {
+                    drawWire(mem, pyramidVerts, pyramidVertCount, (int (*)[2])pyramidEdges, pyramidEdgeCount, mo->x, mo->y, mo->z, camX,camY,camZ, ang, cx, horizon, mo->rx, mo->ry, mo->rz, pyramidFaces, pyramidFaceCount, mo->color, mo->fillColor, mo->hasFillColor);
+                } else if (mo->type == OBJ_CUSTOM) {
+                    if (mo->shapeIndex >=0 && mo->shapeIndex < customShapeCount){
+                        CustomShape *cs = &customShapes[mo->shapeIndex];
+                        drawWire(mem, cs->verts, cs->vertCount, cs->edges, cs->edgeCount, mo->x, mo->y, mo->z, camX,camY,camZ, ang, cx, horizon, mo->rx, mo->ry, mo->rz, cs->faces, cs->faceCount, mo->color, mo->fillColor, mo->hasFillColor);
+                    }
+                }
+                SelectObject(mem, prevPen);
+                DeleteObject(objPen);
+            }
+            free(renderOrder);
+        }
+
+        for (int pi=0; pi<MAX_PROJECTILES; ++pi){
+            Projectile *pr = &projectiles[pi];
+            if (!pr->active) continue;
+            HPEN shotPen = CreatePen(PS_SOLID, 2, RGB(255,255,0));
+            HGDIOBJ prevShotPen = SelectObject(mem, shotPen);
+            drawWire(mem, shotVerts, shotVertCount, shotEdges, shotEdgeCount, pr->x, pr->y, pr->z, camX,camY,camZ, ang, cx, horizon, 0.0, 0.0, pr->spin, NULL, 0, RGB(255,255,0), 0, 0);
+            SelectObject(mem, prevShotPen);
+            DeleteObject(shotPen);
         }
 
         MapObject *collided = NULL;
@@ -192,6 +231,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrev, LPSTR lpCmd, int nCmdSh
             SetTextColor(mem, RGB(255,255,255));
             SetBkMode(mem, TRANSPARENT);
             TextOut(mem, mapLeft, mapTop + mapSize + 6, buf, (int)strlen(buf));
+            if (shotDebugText[0] != '\0') {
+                TextOut(mem, mapLeft, mapTop + mapSize + 26, shotDebugText, (int)strlen(shotDebugText));
+            }
 
             if (collided) {
                 int hxW = 220, hxH = 28;

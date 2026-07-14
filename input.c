@@ -1,6 +1,6 @@
 #include "input.h"
 
-int handleInput(double *camX,double *camY,double *camZ,double *ang,double speed,double rotSpeed,double *outSpeedCurr,int *lastLState){
+int handleInput(double *camX,double *camY,double *camZ,double *ang,double speed,double rotSpeed,double *outSpeedCurr,int *lastLState,int *outShootPressed,int *lastShootState){
     double fx = sin(*ang);
     double fz = cos(*ang);
     double rx = cos(*ang);
@@ -28,5 +28,9 @@ int handleInput(double *camX,double *camY,double *camZ,double *ang,double speed,
     int reload = 0;
     if (lState && !(*lastLState)) reload = 1;
     *lastLState = lState;
+
+    int shootState = (GetAsyncKeyState(VK_SPACE) & 0x8000) != 0 || (GetAsyncKeyState('F') & 0x8000) != 0;
+    *outShootPressed = (shootState && !(*lastShootState));
+    *lastShootState = shootState;
     return reload;
 }

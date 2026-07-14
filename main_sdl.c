@@ -4,6 +4,19 @@
 #include "game.h"
 #include <SDL2/SDL.h>
 
+typedef struct {
+    int index;
+    double depth;
+} RenderObjectEntry;
+
+static int compareRenderObjectDepth(const void *a, const void *b) {
+    const RenderObjectEntry *ea = (const RenderObjectEntry *)a;
+    const RenderObjectEntry *eb = (const RenderObjectEntry *)b;
+    if (ea->depth < eb->depth) return 1;
+    if (ea->depth > eb->depth) return -1;
+    return 0;
+}
+
 int main(int argc, char **argv){
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) != 0){
         fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
@@ -18,6 +31,7 @@ int main(int argc, char **argv){
     double ang = 0.0; double speed = 0.08; double rotSpeed = 0.04; double playerHitbox = 0.6;
     loadMap(currentMapFile);
     int lastLState = 0;
+    int lastShootState = 0;
 
     int running = 1;
     Uint32 lastTick = SDL_GetTicks();
@@ -35,8 +49,11 @@ int main(int argc, char **argv){
         updateObjects(dt, camX, camY, camZ);
 
         double speedCurr = 0.0;
-        int reload = handleInput(&camX, &camY, &camZ, &ang, speed, rotSpeed, &speedCurr, &lastLState);
+        int shootPressed = 0;
+        int reload = handleInput(&camX, &camY, &camZ, &ang, speed, rotSpeed, &speedCurr, &lastLState, &shootPressed, &lastShootState);
         if (reload) loadMap(currentMapFile);
+        if (shootPressed) spawnPlayerShot(camX, camY, camZ, ang);
+        updateProjectiles(dt, camX, camY, camZ);
 
         // clear sky
         Uint8 sr=100, sg=160, sb=240;
@@ -81,13 +98,31 @@ int main(int argc, char **argv){
         }
 
         // draw objects via drawWire (white)
-        for (int mi=0; mi<mapObjectCount; ++mi){
-            MapObject *mo = &mapObjects[mi];
-            const Vec3 *verts = (mo->type==OBJ_CUBE ? cubeVerts : (mo->type==OBJ_PYRAMID ? pyramidVerts : NULL));
-            int vcount = (mo->type==OBJ_CUBE ? cubeVertCount : (mo->type==OBJ_PYRAMID ? pyramidVertCount : 0));
-            int (*edges)[2] = (mo->type==OBJ_CUBE ? cubeEdges : (mo->type==OBJ_PYRAMID ? pyramidEdges : NULL));
-            int ecount = (mo->type==OBJ_CUBE ? cubeEdgeCount : (mo->type==OBJ_PYRAMID ? pyramidEdgeCount : 0));
-            drawWire(ren, verts, vcount, edges, ecount, mo->x, mo->y, mo->z, camX,camY,camZ, ang, cx, horizon, mo->rx, mo->ry, mo->rz);
+        if (mapObjectCount > 0) {
+            RenderObjectEntry *renderOrder = malloc(sizeof(RenderObjectEntry) * mapObjectCount);
+            for (int mi=0; mi<mapObjectCount; ++mi) {
+                double dx = mapObjects[mi].x - camX;
+                double dy = mapObjects[mi].y - camY;
+                double dz = mapObjects[mi].z - camZ;
+                renderOrder[mi].index = mi;
+                renderOrder[mi].depth = dx*dx + dy*dy + dz*dz;
+            }
+            qsort(renderOrder, mapObjectCount, sizeof(RenderObjectEntry), compareRenderObjectDepth);
+            for (int oi=0; oi<mapObjectCount; ++oi) {
+                MapObject *mo = &mapObjects[renderOrder[oi].index];
+                const Vec3 *verts = (mo->type==OBJ_CUBE ? cubeVerts : (mo->type==OBJ_PYRAMID ? pyramidVerts : NULL));
+                int vcount = (mo->type==OBJ_CUBE ? cubeVertCount : (mo->type==OBJ_PYRAMID ? pyramidVertCount : 0));
+                int (*edges)[2] = (mo->type==OBJ_CUBE ? cubeEdges : (mo->type==OBJ_PYRAMID ? pyramidEdges : NULL));
+                int ecount = (mo->type==OBJ_CUBE ? cubeEdgeCount : (mo->type==OBJ_PYRAMID ? pyramidEdgeCount : 0));
+                drawWire(ren, verts, vcount, edges, ecount, mo->x, mo->y, mo->z, camX,camY,camZ, ang, cx, horizon, mo->rx, mo->ry, mo->rz, (mo->type==OBJ_CUBE ? cubeFaces : (mo->type==OBJ_PYRAMID ? pyramidFaces : NULL)), (mo->type==OBJ_CUBE ? cubeFaceCount : (mo->type==OBJ_PYRAMID ? pyramidFaceCount : 0)), mo->color, mo->fillColor, mo->hasFillColor);
+            }
+            free(renderOrder);
+        }
+
+        for (int pi=0; pi<MAX_PROJECTILES; ++pi) {
+            Projectile *pr = &projectiles[pi];
+            if (!pr->active) continue;
+            drawWire(ren, shotVerts, shotVertCount, shotEdges, shotEdgeCount, pr->x, pr->y, pr->z, camX,camY,camZ, ang, cx, horizon, 0.0, 0.0, pr->spin, NULL, 0, RGB(255,255,0), 0, 0);
         }
 
         // simple mini-map: black rect and small markers

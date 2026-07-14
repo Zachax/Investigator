@@ -1,12 +1,43 @@
 #include "common.h"
 #include <time.h>
 
+static int parse_color_token(const char *text, COLORREF *out) {
+    if (!text || !*text) return 0;
+    if (text[0] == '#') {
+        unsigned int v = 0;
+        if (sscanf(text + 1, "%x", &v) == 1) {
+            int r = (v >> 16) & 0xFF;
+            int g = (v >> 8) & 0xFF;
+            int b = v & 0xFF;
+            *out = RGB(r, g, b);
+            return 1;
+        }
+    } else if (strchr(text, ',') != NULL) {
+        int r, g, b;
+        if (sscanf(text, "%d,%d,%d", &r, &g, &b) == 3) {
+            *out = RGB(r, g, b);
+            return 1;
+        }
+    } else if (strncmp(text, "0x", 2) == 0 || strncmp(text, "0X", 2) == 0) {
+        unsigned int v = 0;
+        if (sscanf(text, "%x", &v) == 1) {
+            int r = (v >> 16) & 0xFF;
+            int g = (v >> 8) & 0xFF;
+            int b = v & 0xFF;
+            *out = RGB(r, g, b);
+            return 1;
+        }
+    }
+    return 0;
+}
+
 /* Helpers to keep loadMap concise */
 static void parse_shape_block(FILE *f, const char *firstLine) {
     char sname[64];
     if (sscanf(firstLine+5, "%63s", sname) < 1) return;
     Vec3 *vbuf = NULL; int vcount=0;
     int (*ebuf)[2] = NULL; int ecount=0;
+    ShapeFace *fbuf = NULL; int fcount=0;
     char line[256];
     while (fgets(line, sizeof(line), f)){
         char *t = line;
@@ -29,13 +60,42 @@ static void parse_shape_block(FILE *f, const char *firstLine) {
                 ebuf = et;
                 ebuf[ecount][0] = a; ebuf[ecount][1] = b; ecount++;
             }
+        } else if (*t=='f' || *t=='F'){
+            char *rest = t + 1;
+            int indices[16]; int icount = 0;
+            COLORREF faceColor = 0; int hasFaceColor = 0;
+            char *tok = strtok(rest, " \t\r\n");
+            while (tok && icount < 16) {
+                if (parse_color_token(tok, &faceColor)) {
+                    hasFaceColor = 1;
+                } else {
+                    indices[icount++] = atoi(tok);
+                }
+                tok = strtok(NULL, " \t\r\n");
+            }
+            if (icount >= 3) {
+                ShapeFace *ft = realloc(fbuf, (fcount+1)*sizeof(ShapeFace));
+                if (!ft) break;
+                fbuf = ft;
+                fbuf[fcount].vertexCount = icount;
+                fbuf[fcount].vertexIndices = malloc(icount * sizeof(int));
+                if (!fbuf[fcount].vertexIndices) break;
+                for (int j = 0; j < icount; ++j) fbuf[fcount].vertexIndices[j] = indices[j];
+                fbuf[fcount].color = faceColor;
+                fbuf[fcount].hasColor = hasFaceColor;
+                fcount++;
+            }
         }
     }
-    if (vcount>0 && ecount>0){
-        addCustomShape(sname, vbuf, vcount, ebuf, ecount);
+    if (vcount>0 && (ecount>0 || fcount>0)){
+        addCustomShape(sname, vbuf, vcount, ebuf, ecount, fbuf, fcount);
     } else {
         if (vbuf) free(vbuf);
         if (ebuf) free(ebuf);
+        if (fbuf) {
+            for (int i=0;i<fcount;i++) if (fbuf[i].vertexIndices) free(fbuf[i].vertexIndices);
+            free(fbuf);
+        }
     }
 }
 
@@ -69,6 +129,8 @@ static int parse_object_tokens_and_add(char **tokens, int tcount) {
     }
     double hitbox = 0.0;
     int colorConsumed = 0;
+    COLORREF fillColorLocal = 0;
+    int hasFillColorLocal = 0;
     int isTele = 0;
     char tpTarget[256] = "";
     int tpMode = 3;
@@ -99,6 +161,11 @@ static int parse_object_tokens_and_add(char **tokens, int tcount) {
                 unsigned int v=0; if (sscanf(tkn+1, "%x", &v)==1){ int r=(v>>16)&0xFF; int g=(v>>8)&0xFF; int b=v&0xFF; col = RGB(r,g,b); colorConsumed = 1; idx++; continue; }
             } else if (strchr(tkn, ',') != NULL) { int r,g,b; if (sscanf(tkn, "%d,%d,%d", &r,&g,&b)==3){ col = RGB(r,g,b); colorConsumed = 1; idx++; continue; } }
             else if (strncmp(tkn, "0x", 2)==0 || strncmp(tkn, "0X",2)==0) { unsigned int v=0; if (sscanf(tkn, "%x", &v)==1){ int r=(v>>16)&0xFF; int g=(v>>8)&0xFF; int b=v&0xFF; col = RGB(r,g,b); colorConsumed = 1; idx++; continue; } }
+        }
+        if (_strnicmp(tkn, "fill=", 5) == 0 || _strnicmp(tkn, "fillcolor=", 10) == 0) {
+            const char *value = (_strnicmp(tkn, "fill=", 5) == 0) ? (tkn + 5) : (tkn + 10);
+            if (parse_color_token(value, &fillColorLocal)) { hasFillColorLocal = 1; }
+            idx++; continue;
         }
         if (_strnicmp(tkn, "hb=", 3) == 0) { hitbox = atof(tkn+3); idx++; continue; }
         if (_stricmp(tkn, "hb") == 0 && idx+1 < tcount) { hitbox = atof(tokens[idx+1]); idx += 2; continue; }
@@ -151,14 +218,22 @@ static int parse_object_tokens_and_add(char **tokens, int tcount) {
         mo.moveSpeed = 0.02; /* very slow */
         mo.maxDistFromHome = 4.0;
         mo.turnSpeed = 20.0;
+        mo.hasFillColor = 1;
+        mo.fillColor = RGB(180, 180, 220);
     } else if (mo.type == OBJ_PYRAMID) {
         mo.movementType = 2; /* chase player */
-        mo.moveSpeed = 0.06; /* slow but faster than cubes */
+        mo.moveSpeed = 0.6; /* slow but faster than cubes */
         mo.maxDistFromHome = 1000.0; /* not strictly bounded */
         mo.turnSpeed = 60.0;
+        mo.hasFillColor = 1;
+        mo.fillColor = RGB(220, 120, 70);
     } else {
         mo.movementType = 0;
         mo.moveSpeed = 0.0;
+    }
+    if (hasFillColorLocal) {
+        mo.hasFillColor = 1;
+        mo.fillColor = fillColorLocal;
     }
 
     /* apply overrides parsed from tokens */
@@ -195,6 +270,12 @@ void freeMap(){
     for (int i=0;i<customShapeCount;i++){
         if (customShapes[i].verts) free(customShapes[i].verts);
         if (customShapes[i].edges) free(customShapes[i].edges);
+        if (customShapes[i].faces) {
+            for (int f=0; f<customShapes[i].faceCount; ++f) {
+                if (customShapes[i].faces[f].vertexIndices) free(customShapes[i].faces[f].vertexIndices);
+            }
+            free(customShapes[i].faces);
+        }
     }
     if (customShapes) free(customShapes);
     customShapes = NULL; customShapeCount = 0;
@@ -226,7 +307,7 @@ int findSpawnIndex(const char *name){
     return -1;
 }
 
-void addCustomShape(const char *name, Vec3 *verts, int vcount, int (*edges)[2], int ecount){
+void addCustomShape(const char *name, Vec3 *verts, int vcount, int (*edges)[2], int ecount, ShapeFace *faces, int faceCount){
     CustomShape *tmp = realloc(customShapes, (customShapeCount+1)*sizeof(CustomShape));
     if (!tmp) return;
     customShapes = tmp;
@@ -236,6 +317,8 @@ void addCustomShape(const char *name, Vec3 *verts, int vcount, int (*edges)[2], 
     cs->vertCount = vcount;
     cs->edges = edges;
     cs->edgeCount = ecount;
+    cs->faces = faces;
+    cs->faceCount = faceCount;
     customShapeCount++;
 }
 

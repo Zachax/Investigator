@@ -2,6 +2,9 @@
 #include <math.h>
 #include <stdlib.h>
 
+Projectile projectiles[MAX_PROJECTILES];
+char shotDebugText[256] = "";
+
 int detectCollision(double camX,double camY,double camZ,double playerHitbox, MapObject **out, int *outIndex){
     MapObject *collided = NULL; int collIndex = -1;
     for (int mi=0; mi<mapObjectCount; ++mi){
@@ -58,7 +61,7 @@ void updateObjects(double dt, double playerX, double playerY, double playerZ) {
             if (diff < -maxTurn) diff = -maxTurn;
             mo->ry += diff;
         } else if (mo->movementType == 2) {
-            /* chase player (towards player's X,Z) */
+            /* chase player (towards player's X,Z) without changing orientation */
             double dx = playerX - mo->x;
             double dz = playerZ - mo->z;
             double dist = sqrt(dx*dx + dz*dz);
@@ -69,16 +72,70 @@ void updateObjects(double dt, double playerX, double playerY, double playerZ) {
                 if (step > dist) step = dist;
                 mo->x += nx * step;
                 mo->z += nz * step;
-                /* orient to movement smoothly using turnSpeed */
-                double desired = atan2(dx, dz) * (180.0 / PI);
-                mo->desiredRy = desired;
-                double diff = mo->desiredRy - mo->ry;
-                while (diff > 180.0) diff -= 360.0;
-                while (diff < -180.0) diff += 360.0;
-                double maxTurn = mo->turnSpeed * dt;
-                if (diff > maxTurn) diff = maxTurn;
-                if (diff < -maxTurn) diff = -maxTurn;
-                mo->ry += diff;
+            }
+        }
+    }
+}
+
+void spawnPlayerShot(double camX, double camY, double camZ, double ang) {
+    for (int i = 0; i < MAX_PROJECTILES; ++i) {
+        Projectile *pr = &projectiles[i];
+        if (pr->active) continue;
+        pr->active = 1;
+        pr->x = camX + sin(ang) * 0.25;
+        pr->y = camY;
+        pr->z = camZ + cos(ang) * 0.25;
+        pr->dirX = sin(ang);
+        pr->dirY = 0.0;
+        pr->dirZ = cos(ang);
+        pr->speed = 8.0;
+        pr->life = 6.0;
+        pr->spin = 0.0;
+        pr->hitboxRadius = 0.2;
+        pr->hitSomething = 0;
+        pr->debugMessage[0] = '\0';
+        shotDebugText[0] = '\0';
+        break;
+    }
+}
+
+void updateProjectiles(double dt, double camX, double camY, double camZ) {
+    if (dt <= 0.0) return;
+    for (int i = 0; i < MAX_PROJECTILES; ++i) {
+        Projectile *pr = &projectiles[i];
+        if (!pr->active) continue;
+        if (pr->hitSomething) {
+            pr->active = 0;
+            continue;
+        }
+
+        pr->x += pr->dirX * pr->speed * dt;
+        pr->z += pr->dirZ * pr->speed * dt;
+        pr->spin += dt * 720.0;
+        pr->life -= dt;
+
+        double dx = pr->x - camX;
+        double dy = pr->y - camY;
+        double dz = pr->z - camZ;
+        double dist = sqrt(dx*dx + dy*dy + dz*dz);
+        if (pr->life <= 0.0 || dist > 80.0) {
+            pr->active = 0;
+            continue;
+        }
+
+        for (int mi = 0; mi < mapObjectCount; ++mi) {
+            MapObject *mo = &mapObjects[mi];
+            if (mo->hitboxRadius <= 0.0) continue;
+            double mdx = mo->x - pr->x;
+            double mdy = mo->y - pr->y;
+            double mdz = mo->z - pr->z;
+            double mdist = sqrt(mdx*mdx + mdy*mdy + mdz*mdz);
+            if (mdist <= (mo->hitboxRadius + pr->hitboxRadius)) {
+                pr->hitSomething = 1;
+                pr->active = 0;
+                snprintf(pr->debugMessage, sizeof(pr->debugMessage), "Shot hit: %s", mo->name);
+                snprintf(shotDebugText, sizeof(shotDebugText), "%s", pr->debugMessage);
+                break;
             }
         }
     }

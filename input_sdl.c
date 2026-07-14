@@ -1,7 +1,7 @@
 #include "input.h"
 #include <SDL2/SDL.h>
 
-int handleInput(double *camX,double *camY,double *camZ,double *ang,double speed,double rotSpeed,double *outSpeedCurr,int *lastLState){
+int handleInput(double *camX,double *camY,double *camZ,double *ang,double speed,double rotSpeed,double *outSpeedCurr,int *lastLState,int *outShootPressed,int *lastShootState){
     const Uint8 *state = SDL_GetKeyboardState(NULL);
     double fx = sin(*ang);
     double fz = cos(*ang);
@@ -30,5 +30,9 @@ int handleInput(double *camX,double *camY,double *camZ,double *ang,double speed,
     int reload = 0;
     if (lState && !(*lastLState)) reload = 1;
     *lastLState = lState;
+
+    int shootState = state[SDL_SCANCODE_SPACE] || state[SDL_SCANCODE_F];
+    *outShootPressed = (shootState && !(*lastShootState));
+    *lastShootState = shootState;
     return reload;
 }

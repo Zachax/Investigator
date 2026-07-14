@@ -5,7 +5,7 @@
 
 void transformPoint(const Vec3 *v, double camX,double camY,double camZ,double ang, double *tx,double *ty,double *tz);
 int project(const Vec3 *v, double camX,double camY,double camZ,double ang, int cx,int cy, int *sx,int *sy);
-void drawWire(HDC dc, const Vec3 *verts, int vertCount, int edges[][2], int edgeCount, double ox,double oy,double oz, double camX,double camY,double camZ,double ang, int cx,int cy, double rotX_deg, double rotY_deg, double rotZ_deg);
+void drawWire(HDC dc, const Vec3 *verts, int vertCount, int edges[][2], int edgeCount, double ox,double oy,double oz, double camX,double camY,double camZ,double ang, int cx,int cy, double rotX_deg, double rotY_deg, double rotZ_deg, const ShapeFace *faces, int faceCount, COLORREF lineColor, COLORREF fillColor, int hasFillColor);
 
 // primitive shapes exported
 extern Vec3 cubeVerts[];
@@ -16,5 +16,13 @@ extern Vec3 pyramidVerts[];
 extern int pyramidEdges[][2];
 extern int pyramidEdgeCount;
 extern int pyramidVertCount;
+extern ShapeFace pyramidFaces[];
+extern int pyramidFaceCount;
+extern ShapeFace cubeFaces[];
+extern int cubeFaceCount;
+extern Vec3 shotVerts[];
+extern int shotEdges[][2];
+extern int shotEdgeCount;
+extern int shotVertCount;
 
 #endif // INVESTIGATOR_RENDER_H

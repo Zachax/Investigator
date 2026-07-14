@@ -27,6 +27,7 @@ typedef unsigned int COLORREF;
 #define WIN_H 600
 #define FOV_SCALE 300.0
 #define PI 3.14159265358979323846
+#define MAX_PROJECTILES 8
 
 typedef struct { double x,y,z; } Vec3;
 
@@ -41,6 +42,8 @@ typedef struct {
     double rx,ry,rz;
     int shapeIndex;
     COLORREF color;
+    COLORREF fillColor;
+    int hasFillColor;
     char name[64];
     double hitboxRadius;
     int isTeleporter;
@@ -61,12 +64,33 @@ typedef struct {
 } MapObject;
 
 typedef struct {
+    int vertexCount;
+    int *vertexIndices;
+    COLORREF color;
+    int hasColor;
+} ShapeFace;
+
+typedef struct {
     char name[64];
     Vec3 *verts;
     int vertCount;
     int (*edges)[2];
     int edgeCount;
+    ShapeFace *faces;
+    int faceCount;
 } CustomShape;
+
+typedef struct {
+    int active;
+    double x,y,z;
+    double dirX,dirY,dirZ;
+    double speed;
+    double life;
+    double spin;
+    double hitboxRadius;
+    int hitSomething;
+    char debugMessage[128];
+} Projectile;
 
 typedef struct { char name[64]; double x,y,z; } SpawnPoint;
 
@@ -84,6 +108,8 @@ extern double defaultSpawnX, defaultSpawnY, defaultSpawnZ;
 extern int canUseTeleport;
 extern char currentMapFile[256];
 extern int lastTeleIndex;
+extern Projectile projectiles[MAX_PROJECTILES];
+extern char shotDebugText[256];
 
 // Default rendering color
 extern COLORREF defaultColor;
@@ -100,6 +126,6 @@ void freeMap(void);
 void clearMapObjectsAndSpawns(void);
 int findSpawnIndex(const char *name);
 int findCustomShape(const char *name);
-void addCustomShape(const char *name, Vec3 *verts, int vcount, int (*edges)[2], int ecount);
+void addCustomShape(const char *name, Vec3 *verts, int vcount, int (*edges)[2], int ecount, ShapeFace *faces, int faceCount);
 
 #endif // INVESTIGATOR_COMMON_H

@@ -12,4 +12,8 @@ void handleTeleportIfNeeded(MapObject **collided, double *camX,double *camY,doub
 // Update dynamic objects (movement/AI)
 void updateObjects(double dt, double playerX, double playerY, double playerZ);
 
+// Projectile helpers
+void spawnPlayerShot(double camX, double camY, double camZ, double ang);
+void updateProjectiles(double dt, double camX, double camY, double camZ);
+
 #endif // INVESTIGATOR_GAME_H
